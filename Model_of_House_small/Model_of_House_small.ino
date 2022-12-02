@@ -13,7 +13,10 @@
 /************ Подключаем файл с паролями доступа к Wi-Fi и брокеру MQTT ******************/
 #include "arduino_secrets.h"
 
+/************ Подключаем мои классы ******************/
+enum SwitchStatus {OFF, ON};
 
+#include "Floor.h"
 
 /************ Global State ******************/
 
@@ -34,39 +37,29 @@ Adafruit_MQTT_Publish Light_Floor_1_Status = Adafruit_MQTT_Publish(&mqtt, "Littl
 Adafruit_MQTT_Publish Light_Floor_2_Status = Adafruit_MQTT_Publish(&mqtt, "LittleHouse_small/Floor_2/Light/Status");
 
 
+// Определяем пины, на которых будет управление
+#define FLOOR_1_PIN D1
+#define FLOOR_2_PIN D2
+
+// Типы данных
+
+
 /*************************** Sketch Code ************************************/
 
 // Bug workaround for Arduino 1.6.6, it seems to need a function declaration
 // for some reason (only affects ESP8266, likely an arduino-builder bug).
 void MQTT_connect();
+void initial();
+
+Floor floor_1(FLOOR_1_PIN);
+Floor floor_2(FLOOR_2_PIN);
+
+String command = "";
 
 void setup() {
-  Serial.begin(115200);
-  delay(10);
-
-  Serial.println(F("Adafruit MQTT demo"));
-
-  // Connect to WiFi access point.
-  Serial.println(); Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(WLAN_SSID);
-
-  WiFi.begin(WLAN_SSID, WLAN_PASS);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println();
-
-  Serial.println("WiFi connected");
-  Serial.println("IP address: "); Serial.println(WiFi.localIP());
-
-  // Setup MQTT subscription for onoff feed.
-  mqtt.subscribe(&Light_Floor_1_Drive);
+  initial();
 }
 
-uint32_t x=0;
-char* state = ""; 
 
 void loop() {
   // Ensure the connection to the MQTT server is alive (this will make the first
@@ -79,22 +72,45 @@ void loop() {
 
   Adafruit_MQTT_Subscribe *subscription;
   while ((subscription = mqtt.readSubscription(5000))) {
-    if (subscription == &Light_Floor_1_Drive) {
+   /* if (subscription == &Light_Floor_1_Drive) {
       Serial.print(F("Got: "));
       state = (char *)Light_Floor_1_Drive.lastread;
       Serial.println((char *)Light_Floor_1_Drive.lastread);
-    }
+    }*/
+    command = "";
+    if (subscription == &Light_Floor_1_Drive) {
+      command = (char *)Light_Floor_1_Drive.lastread;
+      if (command == "ON") {
+        floor_1.Light_ON();
+        Light_Floor_1_Status.publish("ON");
+      };
+      if (command == "OFF") {
+        floor_1.Light_OFF();
+        Light_Floor_1_Status.publish("OFF");        
+      };
+    };
+
+    if (subscription == &Light_Floor_2_Drive) {
+      command = (char *)Light_Floor_2_Drive.lastread;
+      if (command == "ON") {
+        floor_2.Light_ON();
+        Light_Floor_2_Status.publish("ON");
+      };
+      if (command == "OFF") {
+        floor_2.Light_OFF();
+        Light_Floor_2_Status.publish("OFF");
+      };
+    };
   }
 
   // Now we can publish stuff!
-  Serial.print(F("\nSending Light_Floor_1_Status val "));
-  Serial.print(x);
+ /* Serial.print(F("\nSending Light_Floor_1_Status val "));
   Serial.print("...");
-  if (! Light_Floor_1_Status.publish((char *)state)) {
+  if (! Light_Floor_1_Status.publish("ON")) {
     Serial.println(F("Failed"));
   } else {
     Serial.println(F("OK!"));
-  }
+  }*/
 
   // ping the server to keep the mqtt connection alive
   // NOT required if you are publishing once every KEEPALIVE seconds
